@@ -81,9 +81,10 @@ def save_settings(
 
 
 def sync_config_yaml(storefront: str) -> None:
-    """Генерирует строго валидный config.yaml для amdl без синтаксических ошибок."""
+    """Генерирует строго валидный config.yaml с динамическими путями для текущей системы."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Пути формируются автоматически относительно папки проекта, а не жестко заданного пользователя
     alac_path = (BASE_DIR / "AM-Lossless").resolve().as_posix()
     aac_path = (BASE_DIR / "AM-AAC").resolve().as_posix()
     atmos_path = (BASE_DIR / "AM-Atmos").resolve().as_posix()
@@ -135,6 +136,10 @@ paths:
   album-folder: ""
   playlist-folder: ""
   artist-folder: ""
+  apple-master: false
+  clean: false
+  explicit: false
+  limit-max: 200
 
 convert:
   after-download: false
