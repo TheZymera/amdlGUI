@@ -2,6 +2,7 @@
 main.py
 Точка входа и главный графический интерфейс (GUI) Apple Music Downloader.
 """
+from __future__ import annotations
 from logger import app_logger, collect_environment_snapshot
 import queue
 import subprocess
