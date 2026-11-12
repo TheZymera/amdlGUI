@@ -263,7 +263,7 @@ def convert_all_m4a_to_mp3(log_callback: Callable[[str], None]) -> tuple[int, in
                 cmd,
                 capture_output=True,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=CREATE_NO_WINDOW,
             )            
 
             if result.returncode == 0 and mp3_file.exists():
