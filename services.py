@@ -59,7 +59,7 @@ def get_audio_metadata(file_path: Path, ffmpeg_bin: Path) -> dict:
     ]
 
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW,)
         data = json.loads(res.stdout)
         tags = data.get("format", {}).get("tags", {})
         # Приводим ключи к нижнему регистру для надежности
