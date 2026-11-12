@@ -28,7 +28,8 @@ from config import (
     WRAPPER_HOST,
     WRAPPER_PORT,
     WRAPPER_URL,
-    BASE_DIR
+    BASE_DIR,
+    CREATE_NO_WINDOW, 
 )
 from settings_manager import find_ffmpeg
 
