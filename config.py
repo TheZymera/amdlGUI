@@ -5,6 +5,9 @@ config.py
 
 import sys
 from pathlib import Path
+import subprocess
+
+CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 # Определение базовой директории
 # Поддерживает как запуск через python main.py, так и скомпилированный PyInstaller .exe
