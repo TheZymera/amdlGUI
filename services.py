@@ -271,8 +271,9 @@ def convert_all_m4a_to_mp3(log_callback: Callable[[str], None]) -> tuple[int, in
                 cmd,
                 capture_output=True,
                 text=True,
+                timeout=120,                     
                 creationflags=CREATE_NO_WINDOW,
-            )            
+            )        
 
             if result.returncode == 0 and mp3_file.exists():
                 time.sleep(0.15)
@@ -308,6 +309,26 @@ def convert_all_m4a_to_mp3(log_callback: Callable[[str], None]) -> tuple[int, in
             else:
                 failed += 1
                 log_callback(f"Ошибка конвертации {file.name}: {result.stderr[:200]}")
+
+                except subprocess.TimeoutExpired:
+            failed += 1
+            log_callback(f"Таймаут конвертации {file.name} (>120 c). Файл пропущен.")
+            # Удаляем недописанный mp3, если ffmpeg успел его создать
+            try:
+                if mp3_file.exists():
+                    mp3_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        except subprocess.TimeoutExpired:
+            failed += 1
+            log_callback(f"Таймаут конвертации {file.name} (>120 c). Файл пропущен.")
+            # Удаляем недописанный mp3, если ffmpeg успел его создать
+            try:
+                if mp3_file.exists():
+                    mp3_file.unlink(missing_ok=True)
+            except Exception:
+                pass
 
         except Exception as e:
             failed += 1
