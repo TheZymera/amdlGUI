@@ -258,7 +258,12 @@ def convert_all_m4a_to_mp3(log_callback: Callable[[str], None]) -> tuple[int, in
                 str(mp3_file),
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )            
 
             if result.returncode == 0 and mp3_file.exists():
                 time.sleep(0.15)
