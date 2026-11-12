@@ -16,7 +16,7 @@ from pathlib import Path
 from config import (
     BASE_DIR,
     CONFIG_YAML,
-    CREDS_FILE,
+    FFMPEG_EXE,
     INTERNAL_DIR,
     SETTINGS_FILE,
     WRAPPER_URL,
@@ -27,10 +27,10 @@ def find_ffmpeg() -> Path | None:
     """Ищет ffmpeg в internal, корне проекта, папке пользователя или в PATH."""
     home = Path.home()
     candidates = [
-        INTERNAL_DIR / "ffmpeg.exe",
-        INTERNAL_DIR / "bin" / "ffmpeg.exe",
-        BASE_DIR / "ffmpeg.exe",
-        BASE_DIR / "bin" / "ffmpeg.exe",
+        FFMPEG_EXE,
+        INTERNAL_DIR / "bin" / FFMPEG_EXE.name,
+        BASE_DIR / FFMPEG_EXE.name,
+        BASE_DIR / "bin" / FFMPEG_EXE.name,
         *list(home.glob("OneDrive/Документы/ffmpeg*/bin/ffmpeg.exe")),
         *list(home.glob("Documents/ffmpeg*/bin/ffmpeg.exe")),
     ]
@@ -60,15 +60,21 @@ def save_settings(
     storefront: str,
     quality: str = "alac",
     logged_in: bool = False,
+    download_artwork: bool | None = None,
 ) -> None:
     """Сохраняет пользовательские параметры в JSON, creds.txt и обновляет config.yaml."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
     current = load_settings()
+
+    if download_artwork is None:
+        download_artwork = current.get("download_artwork", True)
+
     current.update({
         "email": email.strip(),
         "password": password,
         "storefront": storefront.strip().lower(),
         "quality": quality.strip().lower(),
+        "download_artwork": bool(download_artwork),
         "setup_complete": True,
         "logged_in": logged_in,
     })
@@ -76,19 +82,34 @@ def save_settings(
     SETTINGS_FILE.write_text(
         json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    CREDS_FILE.write_text(f"{email.strip()}:{password}\n", encoding="utf-8")
-    sync_config_yaml(storefront.strip().lower())
+    sync_config_yaml(storefront.strip().lower(), download_artwork=bool(download_artwork))
 
 
-def sync_config_yaml(storefront: str) -> None:
+def sync_config_yaml(storefront: str, download_artwork: bool | None = None) -> None:
     """Генерирует строго валидный config.yaml с динамическими путями для текущей системы."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Пути формируются автоматически относительно папки проекта, а не жестко заданного пользователя
-    alac_path = (BASE_DIR / "AM-Lossless").resolve().as_posix()
-    aac_path = (BASE_DIR / "AM-AAC").resolve().as_posix()
-    atmos_path = (BASE_DIR / "AM-Atmos").resolve().as_posix()
-    mv_path = (BASE_DIR / "AM-MV").resolve().as_posix()
+    if download_artwork is None:
+        download_artwork = load_settings().get("download_artwork", True)
+
+    artwork_embed = "true" if download_artwork else "false"
+    artwork_format = '"jpg"' if download_artwork else '""'
+
+    alac_dir = BASE_DIR / "AM-Lossless"
+    aac_dir = BASE_DIR / "AM-AAC"
+    atmos_dir = BASE_DIR / "AM-Atmos"
+    mv_dir = BASE_DIR / "AM-MV"
+
+    for folder in (alac_dir, aac_dir, atmos_dir, mv_dir):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    alac_path = alac_dir.resolve().as_posix()
+    aac_path = aac_dir.resolve().as_posix()
+    atmos_path = atmos_dir.resolve().as_posix()
+    mv_path = mv_dir.resolve().as_posix()
+
+    artwork_embed = "true" if download_artwork else "false"
+    artwork_format = '"jpg"' if download_artwork else '""'
 
     yaml_content = f"""general:
   lite-server: "{WRAPPER_URL}"
@@ -110,18 +131,19 @@ media:
   mv-audio-type: "atmos"
 
 metadata:
-  artwork-size: 3000
-  artwork-format: "jpg"
-  artwork-embed: true
-  artwork-save-animated: false
-  artwork-emby-animated: false
-  artwork-dl-for-playlist: false
-  artwork-save-artist: false
-  lyrics-embed: true
-  lyrics-save-file: false
-  lyrics-type: "lrc"
-  lyrics-extra: false
-  lyrics-format: "lrc"
+  artwork:
+    format: {artwork_format}
+    embed: {artwork_embed}
+    save-animated: false
+    emby-animated: false
+    dl-for-playlist: false
+    save-artist: false
+  lyrics:
+    embed: true
+    save-file: false
+    type: "lrc"
+    extra: false
+    format: "lrc"
   tags:
     itunes-id: false
     sort-order: false

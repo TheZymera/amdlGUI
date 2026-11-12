@@ -17,7 +17,6 @@ from config import (
     BG_COLOR,
     CARD_2_COLOR,
     CARD_COLOR,
-    CREDS_FILE,
     GREEN_COLOR,
     MUTED_TEXT,
     QUALITY_OPTIONS,
@@ -25,6 +24,7 @@ from config import (
     TEXT_COLOR,
     WRAPPER_EXE,
     YELLOW_COLOR,
+    IS_WIN
 )
 from services import (
     convert_all_m4a_to_mp3,
@@ -56,11 +56,18 @@ class App(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("Apple Music Downloader")
+        if IS_WIN:
+            icon_path = BASE_DIR / "icon.ico"
+            if icon_path.exists():
+                self.iconbitmap(str(icon_path))
+        if icon_path.exists():
+            self.iconbitmap(str(icon_path))
         self.geometry("980x830")
         self.minsize(880, 720)
         self.configure(fg_color=BG_COLOR)
 
         self.log_queue = queue.Queue()
+        self._has_progress_line = False
         self.wrapper_process: subprocess.Popen | None = None
         self.download_process: subprocess.Popen | None = None
         self.settings = load_settings()
@@ -72,7 +79,7 @@ class App(ctk.CTk):
         self.after(100, self.process_log_queue)
 
         # Проверка первого запуска: если нет настроек или файла creds.txt
-        if not self.settings.get("setup_complete") or not CREDS_FILE.exists():
+        if not self.settings.get("setup_complete"):
             self.after(200, self.open_setup_wizard)
         else:
             sync_config_yaml(self.settings.get("storefront", "kz"))
@@ -80,8 +87,9 @@ class App(ctk.CTk):
             self.after(300, self.start_wrapper)
 
     def bind_clipboard_shortcuts(self):
-        """Регистрируем горячие клавиши напрямую на классе Entry, чтобы исключить дублирование."""
-        self.bind_class("Entry", "<Control-KeyPress>", self._handle_clipboard_keys)
+        """Регистрируем горячие клавиши напрямую на классе Entry (актуально для Windows)."""
+        if IS_WIN:
+            self.bind_class("Entry", "<Control-KeyPress>", self._handle_clipboard_keys)
 
     def _handle_clipboard_keys(self, event):
         kc = event.keycode
@@ -344,7 +352,21 @@ class App(ctk.CTk):
             hover_color=ACCENT_HOVER,
             corner_radius=8,
         )
-        self.auto_convert_cb.pack(anchor="w", padx=18, pady=(0, 12))
+        self.auto_convert_cb.pack(anchor="w", padx=18, pady=(0, 6))
+
+        self.download_artwork = ctk.BooleanVar(value=self.settings.get("download_artwork", True))
+        self.artwork_switch = ctk.CTkSwitch(
+            actions_card,
+            text="Скачивать и вшивать обложку альбома",
+            variable=self.download_artwork,
+            command=self.on_artwork_toggle_changed,
+            font=("Segoe UI", 11),
+            text_color=TEXT_COLOR,
+            progress_color=ACCENT_COLOR,
+            button_color=TEXT_COLOR,
+            button_hover_color="#ffffff",
+        )
+        self.artwork_switch.pack(anchor="w", padx=18, pady=(0, 12))
 
         # --- Лог ---
         log_card = ctk.CTkFrame(self, fg_color=CARD_COLOR, corner_radius=18)
@@ -368,15 +390,25 @@ class App(ctk.CTk):
         self.log_text.configure(state="disabled")
 
     def log(self, text):
-        app_logger.info(str(text))
-        self.log_queue.put(str(text))
+        msg = str(text)
+        if not msg.startswith("\r"):
+            app_logger.info(msg)
+        self.log_queue.put(msg)
 
     def process_log_queue(self):
         try:
             while True:
                 text = self.log_queue.get_nowait()
                 self.log_text.configure(state="normal")
-                self.log_text.insert("end", text + "\n")
+                if text.startswith("\r"):
+                    clean_text = text[1:]
+                    if self._has_progress_line:
+                        self.log_text.delete("end-2l", "end-1l")
+                    self.log_text.insert("end", clean_text + "\n")
+                    self._has_progress_line = True
+                else:
+                    self.log_text.insert("end", text + "\n")
+                    self._has_progress_line = False
                 self.log_text.see("end")
                 self.log_text.configure(state="disabled")
         except queue.Empty:
@@ -399,6 +431,19 @@ class App(ctk.CTk):
         )
         self.log(f"Выбрано качество: {value} (флаг: --{code})")
 
+    def on_artwork_toggle_changed(self):
+        enabled = bool(self.download_artwork.get())
+        self.settings["download_artwork"] = enabled
+        save_settings(
+            email=self.settings.get("email", ""),
+            password=self.settings.get("password", ""),
+            storefront=self.settings.get("storefront", "kz"),
+            quality=self.settings.get("quality", "alac"),
+            logged_in=self.settings.get("logged_in", False),
+            download_artwork=enabled,
+        )
+        state_text = "включено" if enabled else "выключено"
+        self.log(f"Скачивание обложки: {state_text}")
     def get_current_quality_flag(self) -> str:
         selected_label = self.quality_var.get()
         return QUALITY_OPTIONS.get(selected_label, "alac")
@@ -636,7 +681,10 @@ class App(ctk.CTk):
 
         def _worker():
             try:
-                converted, failed = convert_all_m4a_to_mp3(log_callback=self.log)
+                converted, failed = convert_all_m4a_to_mp3(
+                    log_callback=self.log,
+                    download_artwork=bool(self.download_artwork.get()),
+                )
                 self.log(f"Конвертация завершена. Успешно: {converted}. Ошибок: {failed}.")
                 self.after(0, lambda: self.set_status("Готово", GREEN_COLOR))
             except Exception as err:

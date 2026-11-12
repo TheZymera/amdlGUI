@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 import subprocess
 
-CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+IS_WIN = sys.platform == "win32"
+CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW if IS_WIN else 0
 
 # Определение базовой директории
 # Поддерживает как запуск через python main.py, так и скомпилированный PyInstaller .exe
@@ -21,13 +22,19 @@ INTERNAL_DIR = BASE_DIR / "internal"
 LOGS_DIR = INTERNAL_DIR / "logs"
 
 # Внутренние исполняемые файлы и утилиты
-WRAPPER_DIR = INTERNAL_DIR / "wrapper-lite-qemu-windows-x86_64"
-WRAPPER_EXE = WRAPPER_DIR / "wrapper-lite-qemu.exe"
-AMDL_EXE = INTERNAL_DIR / "amdl.exe"
+if IS_WIN:
+    WRAPPER_DIR = INTERNAL_DIR / "wrapper-lite-qemu-windows-x86_64"
+    WRAPPER_EXE = WRAPPER_DIR / "wrapper-lite-qemu.exe"
+    AMDL_EXE = INTERNAL_DIR / "amdl.exe"
+    FFMPEG_EXE = INTERNAL_DIR / "ffmpeg.exe"
+else:
+    WRAPPER_DIR = INTERNAL_DIR / "wrapper-lite-qemu-linux-x86_64"
+    WRAPPER_EXE = WRAPPER_DIR / "wrapper-lite-qemu"
+    AMDL_EXE = INTERNAL_DIR / "amdl"
+    FFMPEG_EXE = INTERNAL_DIR / "ffmpeg"
 
 # Файлы конфигурации и учетных данных
 CONFIG_YAML = INTERNAL_DIR / "config.yaml"
-CREDS_FILE = INTERNAL_DIR / "creds.txt"
 SETTINGS_FILE = INTERNAL_DIR / "user_settings.json"
 
 # Папки для загрузки треков (находятся в корне, на виду у пользователя)

@@ -26,6 +26,7 @@ from config import (
     WRAPPER_DIR,
     WRAPPER_EXE,
     YELLOW_COLOR,
+    CREATE_NO_WINDOW
 )
 from settings_manager import load_settings, save_settings
 
@@ -51,11 +52,16 @@ class SetupDialog(ctk.CTkToplevel):
 
         # Делаем окно модальным поверх главного
         self.transient(parent)
-        self.grab_set()
+        self.after(50, self._safe_grab)
 
         self.build_ui(current_settings)
         self.protocol("WM_DELETE_WINDOW", self.on_close_dialog)
 
+    def _safe_grab(self):
+        try:
+            self.grab_set()
+        except Exception:
+            pass
     def build_ui(self, settings: dict):
         container = ctk.CTkFrame(self, fg_color=CARD_COLOR, corner_radius=18)
         container.pack(fill="both", expand=True, padx=20, pady=20)
@@ -275,7 +281,7 @@ class SetupDialog(ctk.CTkToplevel):
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 for line in self.login_process.stdout:
                     clean_line = line.rstrip()
