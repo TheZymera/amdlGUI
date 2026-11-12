@@ -6,7 +6,7 @@ services.py
 - Запуск загрузки amdl.exe
 - Пакетная конвертация m4a в mp3 через ffmpeg
 """
-
+from __future__ import annotations
 import json
 import socket
 import subprocess
