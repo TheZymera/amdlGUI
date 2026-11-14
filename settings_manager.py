@@ -12,6 +12,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from components import find_ffmpeg
 
 from config import (
     BASE_DIR,
@@ -22,26 +23,6 @@ from config import (
     WRAPPER_URL,
 )
 
-
-def find_ffmpeg() -> Path | None:
-    """Ищет ffmpeg в internal, корне проекта, папке пользователя или в PATH."""
-    home = Path.home()
-    candidates = [
-        FFMPEG_EXE,
-        INTERNAL_DIR / "bin" / FFMPEG_EXE.name,
-        BASE_DIR / FFMPEG_EXE.name,
-        BASE_DIR / "bin" / FFMPEG_EXE.name,
-        *list(home.glob("OneDrive/Документы/ffmpeg*/bin/ffmpeg.exe")),
-        *list(home.glob("Documents/ffmpeg*/bin/ffmpeg.exe")),
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-
-    sys_ffmpeg = shutil.which("ffmpeg")
-    if sys_ffmpeg:
-        return Path(sys_ffmpeg)
-    return None
 
 
 def load_settings() -> dict:

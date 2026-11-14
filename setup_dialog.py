@@ -11,6 +11,9 @@ import threading
 from typing import Callable
 
 import customtkinter as ctk
+from components import ensure_executable
+from config import CREATE_NO_WINDOW, IS_WIN, WRAPPER_DIR, WRAPPER_EXE
+from services import cleanup_wrapper_processes, kill_process_tree
 
 from config import (
     ACCENT_COLOR,
@@ -26,7 +29,8 @@ from config import (
     WRAPPER_DIR,
     WRAPPER_EXE,
     YELLOW_COLOR,
-    CREATE_NO_WINDOW
+    CREATE_NO_WINDOW,
+    IS_WIN
 )
 from settings_manager import load_settings, save_settings
 
@@ -62,6 +66,12 @@ class SetupDialog(ctk.CTkToplevel):
             self.grab_set()
         except Exception:
             pass
+
+    def destroy(self):
+        kill_process_tree(self.login_process)
+        self.login_process = None
+        cleanup_wrapper_processes()
+        super().destroy()
     def build_ui(self, settings: dict):
         container = ctk.CTkFrame(self, fg_color=CARD_COLOR, corner_radius=18)
         container.pack(fill="both", expand=True, padx=20, pady=20)
@@ -259,9 +269,14 @@ class SetupDialog(ctk.CTkToplevel):
 
         if not WRAPPER_EXE.exists():
             self.status_lbl.configure(
-                text="wrapper-lite-qemu.exe не найден в папке internal!", text_color=RED_COLOR
+                text=f"{WRAPPER_EXE.name} не найден в папке internal!", text_color=RED_COLOR
             )
             return
+
+        # Если предыдущая попытка входа ещё висит — принудительно завершаем её
+        kill_process_tree(getattr(self, "login_process", None))
+        self.login_process = None
+        ensure_executable(WRAPPER_EXE)
 
         creds = f"{email}:{password}"
         self.status_lbl.configure(
@@ -271,29 +286,37 @@ class SetupDialog(ctk.CTkToplevel):
         self.parent_app.log("Запущена авторизация Apple ID...")
 
         def _login_worker():
+            popen_kwargs: dict = {
+                "cwd": str(WRAPPER_DIR),
+                "stdin": subprocess.PIPE,
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.STDOUT,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            }
+            if IS_WIN:
+                popen_kwargs["creationflags"] = CREATE_NO_WINDOW
+            else:
+                popen_kwargs["start_new_session"] = True
+
             try:
                 self.login_process = subprocess.Popen(
                     [str(WRAPPER_EXE), "--login", creds],
-                    cwd=str(WRAPPER_DIR),
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=CREATE_NO_WINDOW,
+                    **popen_kwargs,
                 )
-                for line in self.login_process.stdout:
-                    clean_line = line.rstrip()
-                    self.parent_app.log(f"[Auth] {clean_line}")
-                    if "2fa" in clean_line.lower() or "code" in clean_line.lower():
-                        self.after(
-                            0,
-                            lambda: self.status_lbl.configure(
-                                text="Требуется код 2FA! Введите его в поле выше и нажмите Отправить.",
-                                text_color=YELLOW_COLOR,
-                            ),
-                        )
+                if self.login_process.stdout:
+                    for line in self.login_process.stdout:
+                        clean_line = line.rstrip()
+                        self.parent_app.log(f"[Auth] {clean_line}")
+                        if "2fa" in clean_line.lower() or "code" in clean_line.lower():
+                            self.after(
+                                0,
+                                lambda: self.status_lbl.configure(
+                                    text="Требуется код 2FA! Введите его в поле выше и нажмите Отправить.",
+                                    text_color=YELLOW_COLOR,
+                                ),
+                            )
 
                 self.login_process.wait()
                 if self.login_process.returncode == 0:
@@ -313,12 +336,16 @@ class SetupDialog(ctk.CTkToplevel):
                         ),
                     )
             except OSError as err:
+                err_msg = str(err)
                 self.after(
                     0,
-                    lambda: self.status_lbl.configure(
-                        text=f"Ошибка запуска: {err}", text_color=RED_COLOR
+                    lambda msg=err_msg: self.status_lbl.configure(
+                        text=f"Ошибка запуска: {msg}", text_color=RED_COLOR
                     ),
                 )
+            finally:
+                kill_process_tree(self.login_process)
+                self.login_process = None
 
         threading.Thread(target=_login_worker, daemon=True).start()
 

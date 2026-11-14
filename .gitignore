@@ -1,34 +1,41 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
-# 1. Личные данные, токены и сгенерированные конфиги
-settings.json
-config.yaml
-internal/
+# Python & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
 
-# 2. Скачанная музыка и результаты конвертации
+# Build & Installer artifacts
+build/
+dist/
+*.spec
+release_win/
+installer_out/
+intaller out/
+
+# Local binaries, credentials, configs & logs
+internal/
+user_settings.json
+config.yaml
+creds.txt
+*.log
+
+# Downloaded media
 AM-Lossless/
 AM-AAC/
 AM-Atmos/
 AM-MV/
 
-# 3. Логи приложения
-*.log
-logs/
-
-# 4. Служебные файлы IDE и Python
-.idea/
+# IDE & OS files
 .vscode/
-__pycache__/
-*.pyc
+.idea/
 *.iml
 inspectionProfiles/
+inspectionProfile/
 misc.xml
 modules.xml
 vcs.xml
+workspace.xml
 .DS_Store
+Thumbs.db

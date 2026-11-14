@@ -25,6 +25,9 @@ import tempfile
 import zipfile
 import os
 import tarfile
+import atexit
+import signal
+from components import ensure_executable, ensure_ffmpeg, find_ffmpeg
 
 from config import (
     AMDL_EXE,
@@ -51,90 +54,7 @@ def is_wrapper_running() -> bool:
     except OSError:
         return False
 
-def _ensure_executable(path: Path) -> None:
-    """Выдаёт права на запуск бинарника на Linux/macOS."""
-    if not IS_WIN and path.exists():
-        path.chmod(path.stat().st_mode | 0o755)
 
-
-FFMPEG_WIN_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-FFMPEG_LINUX_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
-
-
-def ensure_ffmpeg(log_callback: Callable[[str], None]) -> Path:
-    """Ищет ffmpeg в internal/ или системе; при отсутствии скачивает под текущую ОС."""
-    existing = find_ffmpeg()
-    if existing:
-        return existing
-
-    INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
-    log_callback(f"FFmpeg не найден локально. Скачиваю бинарник {FFMPEG_EXE.name}...")
-
-    download_url = FFMPEG_WIN_URL if IS_WIN else FFMPEG_LINUX_URL
-    archive_name = "ffmpeg.zip" if IS_WIN else "ffmpeg.tar.xz"
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        archive_path = Path(tmp_dir) / archive_name
-        req = urllib.request.Request(
-            download_url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
-        )
-
-        with urllib.request.urlopen(req, timeout=120) as resp, open(archive_path, "wb") as out:
-            total_size = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            last_ui_update = 0.0
-            bar_len = 24
-
-            while True:
-                chunk = resp.read(65536)
-                if not chunk:
-                    break
-                out.write(chunk)
-                downloaded += len(chunk)
-
-                now = time.monotonic()
-                if now - last_ui_update >= 0.15 or (total_size and downloaded >= total_size):
-                    last_ui_update = now
-                    mb_done = downloaded / (1024 * 1024)
-                    if total_size > 0:
-                        percent = min(100.0, downloaded * 100.0 / total_size)
-                        filled = int(bar_len * downloaded / total_size)
-                        bar = "█" * filled + "░" * (bar_len - filled)
-                        mb_total = total_size / (1024 * 1024)
-                        log_callback(f"\rСкачивание FFmpeg: [{bar}] {percent:5.1f}% ({mb_done:.1f} / {mb_total:.1f} МБ)")
-                    else:
-                        log_callback(f"\rСкачивание FFmpeg: {mb_done:.1f} МБ...")
-
-        log_callback(f"Архив загружен. Извлекаю {FFMPEG_EXE.name}...")
-
-        if IS_WIN:
-            if not zipfile.is_zipfile(archive_path):
-                raise RuntimeError("Скачанный файл не является ZIP-архивом.")
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                for member in zf.namelist():
-                    if member.endswith("bin/ffmpeg.exe"):
-                        with zf.open(member) as src, open(FFMPEG_EXE, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        break
-        else:
-            if not tarfile.is_tarfile(archive_path):
-                raise RuntimeError("Скачанный файл не является TAR.XZ-архивом.")
-            with tarfile.open(archive_path, "r:xz") as tf:
-                for member in tf.getmembers():
-                    if member.isfile() and member.name.endswith("bin/ffmpeg"):
-                        src = tf.extractfile(member)
-                        if src:
-                            with src, open(FFMPEG_EXE, "wb") as dst:
-                                shutil.copyfileobj(src, dst)
-                        break
-
-    if not FFMPEG_EXE.exists():
-        raise RuntimeError(f"Не удалось извлечь {FFMPEG_EXE.name} из загруженного архива.")
-
-    _ensure_executable(FFMPEG_EXE)
-    log_callback(f"FFmpeg успешно установлен в internal/{FFMPEG_EXE.name}.")
-    return FFMPEG_EXE
 def get_audio_metadata(file_path: Path) -> dict:
     """Извлекает теги (artist, album, title, track) из m4a через mutagen без ffprobe.exe."""
     try:
@@ -206,22 +126,98 @@ def _remove_empty_dirs(start_dir: Path, stop_at: Path) -> None:
             break
         current = current.parent
 
+_wrapper_proc: subprocess.Popen | None = None
+
+
+def kill_process_tree(proc: subprocess.Popen | None) -> None:
+    """Мгновенно завершает процесс вместе со всеми его дочерними процессами (QEMU/FFmpeg)."""
+    if proc is None or proc.poll() is not None:
+        return
+
+    try:
+        if IS_WIN:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                creationflags=CREATE_NO_WINDOW,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def start_wrapper_process() -> subprocess.Popen:
-    """Запускает wrapper-lite-qemu полностью в фоне без окна консоли."""
+    """Запускает wrapper-lite-qemu в изолированной группе процессов без окна консоли."""
+    global _wrapper_proc
+
+    if _wrapper_proc is not None and _wrapper_proc.poll() is None:
+        return _wrapper_proc
+
     if not WRAPPER_EXE.exists():
         raise FileNotFoundError(f"Файл {WRAPPER_EXE.name} не найден в {WRAPPER_DIR}")
 
-    _ensure_executable(WRAPPER_EXE)
+    ensure_executable(WRAPPER_EXE)
 
-    return subprocess.Popen(
-        [str(WRAPPER_EXE)],
-        cwd=str(WRAPPER_DIR),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=CREATE_NO_WINDOW,
-    )
+    popen_kwargs: dict = {
+        "cwd": str(WRAPPER_DIR),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if IS_WIN:
+        popen_kwargs["creationflags"] = CREATE_NO_WINDOW
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    _wrapper_proc = subprocess.Popen([str(WRAPPER_EXE)], **popen_kwargs)
+    return _wrapper_proc
 
 
+def cleanup_wrapper_processes() -> None:
+    """Мгновенно завершает wrapper-lite и отвязанные процессы QEMU."""
+    if IS_WIN:
+        # Сначала убиваем wrapper, чтобы он не перезапустил QEMU, затем сам эмулятор
+        for exe_name in ("wrapper-lite-qemu.exe", "qemu-system-x86_64.exe", "qemu-system-aarch64.exe"):
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", exe_name],
+                    creationflags=CREATE_NO_WINDOW,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                )
+            except Exception:
+                pass
+    else:
+        for proc_name in ("wrapper-lite-qemu", "qemu-system-x86_64", "qemu-system-aarch64"):
+            try:
+                subprocess.run(
+                    ["pkill", "-9", "-x", proc_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                )
+            except Exception:
+                pass
+
+
+def stop_wrapper_process(proc: subprocess.Popen | None = None) -> None:
+    """Останавливает wrapper-lite и все дочерние процессы QEMU, включая отвязанные."""
+    global _wrapper_proc
+
+    if proc is not None and proc is not _wrapper_proc:
+        kill_process_tree(proc)
+
+    if _wrapper_proc is not None:
+        kill_process_tree(_wrapper_proc)
+        _wrapper_proc = None
+
+    cleanup_wrapper_processes()
 def wait_for_wrapper(
     timeout_seconds: int = 60,
     interval: float = 2.0,
@@ -292,7 +288,7 @@ def run_amdl_download(
         log_callback: Callable[[str], None],
         on_finish_callback: Callable[[int, subprocess.Popen], None],
 ) -> subprocess.Popen:
-    _ensure_executable(WRAPPER_EXE)
+    ensure_executable(WRAPPER_EXE)
     for folder in DOWNLOAD_FOLDERS:
         folder.mkdir(parents=True, exist_ok=True)
     cmd = [str(AMDL_EXE)]

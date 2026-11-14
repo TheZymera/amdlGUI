@@ -33,6 +33,7 @@ from services import (
     search_apple_music,
     start_wrapper_process,
     wait_for_wrapper,
+    stop_wrapper_process
 )
 from settings_manager import (
     load_settings,
@@ -699,6 +700,7 @@ class App(ctk.CTk):
 
     def on_close(self):
         self.log("Закрываю приложение...")
+        stop_wrapper_process(getattr(self, "wrapper_proc", None))
 
         if self.download_process and self.download_process.poll() is None:
             self.download_process.terminate()
