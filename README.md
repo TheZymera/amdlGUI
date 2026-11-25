@@ -1,39 +1,52 @@
-# Apple Music Downloader GUI (AMDL GUI)
+# AMDL GUI — Apple Music Downloader
 
-A graphical interface built with CustomTkinter for downloading tracks, albums, and music videos from Apple Music, with automatic conversion to 320 kbps MP3 using FFmpeg.
+A cross-platform desktop graphical interface (Windows & Linux) built with Python and CustomTkinter for searching, downloading, and converting Apple Music tracks in **Lossless (ALAC)**, **High Quality (AAC)**, and **Dolby Atmos** formats.
 
-> **Special thanks to the original AMDL developers** for creating the core downloading and decryption technology that makes this project possible.
+---
 
-## 🚀 Installation
+## Shout-Out to the AMDL Developers
 
-Everything is installed and launched through a single file:
+This GUI is built on top of the open-source Apple Music downloader ecosystem. Massive credit and thanks to the developers who created and maintain the core downloader and decryption backend:
 
-1. Go to the **Releases** section on the right side of the repository (the blue link with the latest version).
-2. Download the `AMDL-Setup.exe` installer.
-3. Run it — it will automatically prepare the environment and launch the application.
+* **[zhaarey](https://github.com/zhaarey/apple-music-downloader)** — creator and maintainer of the `amdl` core CLI downloader.
+* **[WorldObservationLog](https://github.com/WorldObservationLog/wrapper)** — creator of `wrapper` / `wrapper-lite`, the local decryption backend service.
+* **Sorrow** — author of the original Apple Music downloader script.
+* **Sendy McSenderson** — contributor of the streaming download-and-decrypt implementation.
+* **[itouakirai](https://github.com/itouakirai/go-mp4tag)** — contributor and author of `go-mp4tag` for MP4 container metadata tagging.
 
-## 🛠 Features & Architecture
+---
 
-- **Strict two-phase pipeline:** Downloading and conversion are separated. `amdl` finishes decryption and defragmentation of the `.m4a` file, closes the file handle, and only then FFmpeg transcodes the track to MP3. This prevents file-locking conflicts.
-- **Automatic metadata normalization:** Tags such as artist, album, track number, and title are extracted directly from the audio stream using `ffprobe`. Files are organized using the following structure: `Artist / Album / Track Number. Title.mp3`.
-- **Cover art and lyrics transfer:** Album covers and `.lrc` lyrics files are synchronized with the MP3 output folder without creating orphaned folders.
-- **Catalogs and regions:** Supports searching and downloading through Apple Music storefronts in different countries, including KZ, US, RU, and others.
+## What Is This?
 
-## 💡 Credits & Sources
+**AMDL GUI** wraps the `amdl` command-line tool and `wrapper-lite` decryption service into a single offline-ready desktop application:
 
-This repository is a GUI wrapper and post-processing pipeline built around existing tools:
+* **Built-in Catalog Search & Direct Links:** Search tracks directly via the iTunes Search API or paste any `music.apple.com` song/album URL.
+* **Multiple Audio Formats:** Download original **ALAC (up to 24-bit/192kHz)**, **AAC**, or **Dolby Atmos (E-AC-3)** streams.
+* **Automatic MP3 320 kbps Conversion:** Optionally converts downloaded `.m4a` tracks into tagged 320 kbps `.mp3` files with embedded album artwork via FFmpeg.
+* **OS Music Library Integration:** Automatically organizes downloads into your system Music directory (`Music/AMDL_music/AM-Lossless`, `AM-AAC`, `AM-Atmos`) with a one-click folder button in the app.
 
-- **Core downloader:** Based on the `amdl` CLI utility and the `wrapper-lite` emulator (QEMU). Huge thanks to the original developers for implementing the networking and decryption functionality.
-- **Interface:** Built with [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) by Tom Schimansky.
-- **Conversion:** Powered by [FFmpeg](https://ffmpeg.org/).
+---
 
-## 🤝 For Developers
+## What You Require
 
-The project architecture is open and organized into modules:
+* **Operating System:** Windows 10/11 (64-bit) or Linux (`x86_64` with `tk` / X11 or Wayland).
+* **Active Apple Music Subscription:** Required to authenticate your session and stream/download audio.
+* **Disk Space & CPU Virtualization:** ~500 MB free disk space. On Windows, WHPX/Hyper-V or standard QEMU acceleration is used automatically by the bundled `wrapper-lite` guest.
+* **Installation Path (Windows):** Install into a Latin-character path (default: `%LocalAppData%\AMDL`) so the bundled QEMU service starts without path encoding errors.
 
-- `main.py` — Window lifecycle, user-event handling, and the blocking UI pipeline.
-- `services.py` — Launching `amdl.exe`, extracting tags with `ffprobe`, managing `ffmpeg.exe`, and cleaning directories.
-- `settings_manager.py` — Synchronizing the dynamic `config.yaml` with user settings.
-- `config.py` — Paths, environment variables, and quality formats.
+---
 
-Improvements, bug fixes, and pull requests are welcome.
+## How to Install
+
+### Windows
+1. Open the **[GitHub Releases Page](https://github.com/TheZymera/amdl/releases/latest)** and download **`AMDL-Setup.exe`**.
+2. Run **`AMDL-Setup.exe`** and follow the setup wizard (keep the default path `%LocalAppData%\AMDL`).
+3. Launch **AMDL** from the Start Menu or Desktop shortcut and complete the first-time account setup.
+
+### Linux (`x86_64`)
+1. Open the **[GitHub Releases Page](https://github.com/TheZymera/amdl/releases/latest)** and download **`AMDL-1.2.0-linux-x86_64.tar.gz`**.
+2. Extract the archive and run the installer script in your terminal:
+   ```bash
+   tar -xzf AMDL-1.2.0-linux-x86_64.tar.gz
+   cd AMDL-1.2.0-linux-x86_64
+   ./install.sh

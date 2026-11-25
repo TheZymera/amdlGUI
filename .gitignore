@@ -1,41 +1,17 @@
-# Python & virtual environments
 __pycache__/
 *.py[cod]
-*$py.class
-.venv/
-venv/
-env/
-
-# Build & Installer artifacts
+*.spec
 build/
 dist/
-*.spec
 release_win/
+release_linux/
 installer_out/
-intaller out/
-
-# Local binaries, credentials, configs & logs
-internal/
-user_settings.json
-config.yaml
-creds.txt
-*.log
-
-# Downloaded media
-AM-Lossless/
-AM-AAC/
-AM-Atmos/
-AM-MV/
-
-# IDE & OS files
-.vscode/
-.idea/
-*.iml
-inspectionProfiles/
-inspectionProfile/
-misc.xml
-modules.xml
-vcs.xml
-workspace.xml
-.DS_Store
-Thumbs.db
+installer_out_linux/
+internal/logs/
+internal/user_settings.json
+internal/*.log
+internal/creds.txt
+internal/wrapper-lite-qemu-*/
+internal/*.exe
+internal/amdl
+internal/ffmpeg

@@ -3,26 +3,23 @@ settings_manager.py
 Управление пользовательскими настройками, конфигами и утилитами:
 - Чтение и запись user_settings.json
 - Генерация и синхронизация config.yaml для amdl
-- Сохранение creds.txt
 - Подмена региона в ссылках Apple Music
-- Поиск ffmpeg в папках проекта и системе
 """
 
 import json
 import re
-import shutil
-from pathlib import Path
 from components import find_ffmpeg
-
 from config import (
-    BASE_DIR,
+    AAC_OUTPUT_DIR,
+    ALAC_OUTPUT_DIR,
+    ATMOS_OUTPUT_DIR,
     CONFIG_YAML,
-    FFMPEG_EXE,
     INTERNAL_DIR,
+    MV_OUTPUT_DIR,
     SETTINGS_FILE,
     WRAPPER_URL,
+    ensure_music_dirs,
 )
-
 
 
 def load_settings() -> dict:
@@ -43,7 +40,7 @@ def save_settings(
     logged_in: bool = False,
     download_artwork: bool | None = None,
 ) -> None:
-    """Сохраняет пользовательские параметры в JSON, creds.txt и обновляет config.yaml."""
+    """Сохраняет пользовательские параметры в JSON и обновляет config.yaml."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
     current = load_settings()
 
@@ -67,8 +64,9 @@ def save_settings(
 
 
 def sync_config_yaml(storefront: str, download_artwork: bool | None = None) -> None:
-    """Генерирует строго валидный config.yaml с динамическими путями для текущей системы."""
+    """Генерирует строго валидный config.yaml с динамическими путями в Music/AMDL_music."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_music_dirs()
 
     if download_artwork is None:
         download_artwork = load_settings().get("download_artwork", True)
@@ -76,21 +74,10 @@ def sync_config_yaml(storefront: str, download_artwork: bool | None = None) -> N
     artwork_embed = "true" if download_artwork else "false"
     artwork_format = '"jpg"' if download_artwork else '""'
 
-    alac_dir = BASE_DIR / "AM-Lossless"
-    aac_dir = BASE_DIR / "AM-AAC"
-    atmos_dir = BASE_DIR / "AM-Atmos"
-    mv_dir = BASE_DIR / "AM-MV"
-
-    for folder in (alac_dir, aac_dir, atmos_dir, mv_dir):
-        folder.mkdir(parents=True, exist_ok=True)
-
-    alac_path = alac_dir.resolve().as_posix()
-    aac_path = aac_dir.resolve().as_posix()
-    atmos_path = atmos_dir.resolve().as_posix()
-    mv_path = mv_dir.resolve().as_posix()
-
-    artwork_embed = "true" if download_artwork else "false"
-    artwork_format = '"jpg"' if download_artwork else '""'
+    alac_path = ALAC_OUTPUT_DIR.resolve().as_posix()
+    aac_path = AAC_OUTPUT_DIR.resolve().as_posix()
+    atmos_path = ATMOS_OUTPUT_DIR.resolve().as_posix()
+    mv_path = MV_OUTPUT_DIR.resolve().as_posix()
 
     yaml_content = f"""general:
   lite-server: "{WRAPPER_URL}"
@@ -158,6 +145,7 @@ convert:
   warn-lossy-to-lossless: true
 """
     CONFIG_YAML.write_text(yaml_content, encoding="utf-8")
+
 
 def normalize_url(url: str, storefront: str) -> str:
     """Подменяет двухбуквенный код региона в ссылке Apple Music, сохраняя параметры трека."""

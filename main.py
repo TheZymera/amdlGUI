@@ -8,6 +8,9 @@ import queue
 import subprocess
 import threading
 import customtkinter as ctk
+import os
+import sys
+from config import MUSIC_OUTPUT_DIR, ensure_music_dirs
 
 from config import (
     ACCENT_COLOR,
@@ -61,6 +64,8 @@ class App(ctk.CTk):
             icon_path = BASE_DIR / "icon.ico"
             if icon_path.exists():
                 self.iconbitmap(str(icon_path))
+
+        ensure_music_dirs()
         if icon_path.exists():
             self.iconbitmap(str(icon_path))
         self.geometry("980x830")
@@ -341,6 +346,22 @@ class App(ctk.CTk):
             command=self.convert_files,
         )
         self.convert_button.pack(side="left")
+
+        self.open_folder_button = ctk.CTkButton(
+            btn_row,
+            text="📂 Папка AMDL_music",
+            width=175,
+            height=38,
+            corner_radius=12,
+            fg_color=CARD_2_COLOR,
+            hover_color="#262636",
+            border_width=1,
+            border_color="#2a2a3a",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 12, "bold"),
+            command=self.open_music_folder,
+        )
+        self.open_folder_button.pack(side="left", padx=(10, 0))
 
         self.auto_convert = ctk.BooleanVar(value=True)
         self.auto_convert_cb = ctk.CTkCheckBox(
@@ -709,6 +730,15 @@ class App(ctk.CTk):
             self.wrapper_process.terminate()
 
         self.destroy()
+
+    def open_music_folder(self) -> None:
+        MUSIC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(str(MUSIC_OUTPUT_DIR))
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(MUSIC_OUTPUT_DIR)])
+        else:
+            subprocess.Popen(["xdg-open", str(MUSIC_OUTPUT_DIR)])
 
 
 if __name__ == "__main__":

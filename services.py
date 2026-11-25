@@ -228,6 +228,10 @@ def wait_for_wrapper(
     while time.time() - start_time < timeout_seconds:
         if is_wrapper_running():
             return True
+        if _wrapper_proc is not None and _wrapper_proc.poll() is not None:
+            if on_tick:
+                on_tick(f'wrapper-lite завершился досрочно (код: {_wrapper_proc.returncode}).')
+            return False
         if on_tick:
             on_tick("Ожидаю запуск wrapper-lite...")
         time.sleep(interval)
@@ -332,7 +336,7 @@ def convert_all_m4a_to_mp3(
     ffmpeg_bin = ensure_ffmpeg(log_callback)
 
     # Ищем во всех выходных папках
-    target_roots = [BASE_DIR / "AM-Lossless", BASE_DIR / "AM-AAC", BASE_DIR / "AM-Atmos"]
+    target_roots = list(DOWNLOAD_FOLDERS)
     m4a_files = []
     for root in target_roots:
         if root.exists():
