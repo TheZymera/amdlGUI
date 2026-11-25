@@ -1,3 +1,4 @@
+# Python / PyInstaller
 __pycache__/
 *.py[cod]
 *.spec
@@ -7,11 +8,16 @@ release_win/
 release_linux/
 installer_out/
 installer_out_linux/
-internal/logs/
-internal/user_settings.json
-internal/*.log
-internal/creds.txt
-internal/wrapper-lite-qemu-*/
-internal/*.exe
-internal/amdl
-internal/ffmpeg
+
+# JetBrains / PyCharm IDE junk
+.idea/
+inspectionProfiles/
+*.iml
+misc.xml
+modules.xml
+vcs.xml
+workspace.xml
+
+# Runtime binaries, logs, and personal config inside internal/
+internal/*
+!internal/.gitkeep
